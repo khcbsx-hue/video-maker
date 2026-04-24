@@ -154,7 +154,7 @@
 
  // Register COI Service Worker để enable SharedArrayBuffer
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/video-maker/coi-serviceworker.js').then(function(reg) {
+  navigator.serviceWorker.register('./coi-serviceworker.js').then(function(reg) {
     if (reg.active) return;
     reg.addEventListener('updatefound', function() {
       reg.installing.addEventListener('statechange', function() {
