@@ -1,0 +1,487 @@
+﻿<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Video Maker — Tạo MP4 từ MP3 + TXT</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ffmpeg/0.11.0/ffmpeg.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', sans-serif;
+    background: #0f172a;
+    color: #e2e8f0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 32px 16px;
+  }
+  .container { width: 100%; max-width: 780px; }
+  h1 {
+    font-size: 22px; font-weight: 700;
+    background: linear-gradient(135deg,#60a5fa,#a78bfa);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    margin-bottom: 6px;
+  }
+  .subtitle { font-size: 13px; color: #94a3b8; margin-bottom: 28px; }
+
+  /* Drop zones */
+  .drop-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px; }
+  .drop-zone {
+    border: 2px dashed #334155;
+    border-radius: 12px;
+    padding: 24px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: all .2s;
+    background: #1e293b;
+    position: relative;
+  }
+  .drop-zone:hover, .drop-zone.drag-over { border-color: #60a5fa; background: #1e3a5f; }
+  .drop-zone.file-ok { border-color: #10b981; background: #052e16; }
+  .drop-zone input[type=file] { position:absolute;inset:0;opacity:0;cursor:pointer; }
+  .drop-icon { font-size: 32px; margin-bottom: 8px; }
+  .drop-label { font-size: 13px; font-weight: 600; color: #cbd5e1; }
+  .drop-sub { font-size: 11px; color: #64748b; margin-top: 4px; }
+  .drop-filename { font-size: 12px; color: #10b981; margin-top: 6px; font-weight: 600; word-break: break-all; }
+
+  /* Progress area */
+  #progressArea {
+    background: #1e293b; border-radius: 14px; padding: 22px;
+    margin-bottom: 20px; display: none;
+  }
+  .prog-title { font-size: 14px; font-weight: 600; color: #e2e8f0; margin-bottom: 14px; }
+  .prog-bar-wrap { background: #0f172a; border-radius: 99px; height: 10px; margin-bottom: 10px; overflow: hidden; }
+  .prog-bar { height: 100%; border-radius: 99px; background: linear-gradient(90deg,#3b82f6,#8b5cf6); width: 0%; transition: width .4s; }
+  .prog-steps { display: flex; flex-direction: column; gap: 6px; max-height: 280px; overflow-y: auto; }
+  .prog-step {
+    font-size: 12px; padding: 7px 12px; border-radius: 8px;
+    background: #0f172a; color: #94a3b8; display: flex; align-items: center; gap: 8px;
+  }
+  .prog-step.active { color: #60a5fa; background: #1e3a5f; }
+  .prog-step.done { color: #10b981; background: #052e16; }
+  .prog-step.error { color: #f87171; background: #2d0f0f; }
+  .prog-step .material-icons { font-size: 15px; }
+
+  /* Image preview strip */
+  #imageStrip {
+    display: none; gap: 8px; flex-wrap: wrap;
+    background: #1e293b; border-radius: 12px;
+    padding: 14px; margin-bottom: 20px;
+  }
+  #imageStrip img {
+    width: 120px; height: 68px; object-fit: cover;
+    border-radius: 6px; border: 2px solid #334155;
+  }
+  #imageStrip img.generating { opacity: .35; border-color: #475569; }
+  #imageStrip img.done { border-color: #10b981; }
+
+  /* Download */
+  #downloadArea { display: none; text-align: center; padding: 24px; background: #1e293b; border-radius: 14px; }
+  #downloadArea .dl-title { font-size: 15px; font-weight: 600; color: #e2e8f0; margin-bottom: 6px; }
+  #downloadArea .dl-meta { font-size: 12px; color: #64748b; margin-bottom: 16px; }
+  #btnDownload {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: linear-gradient(135deg,#10b981,#059669);
+    color: white; padding: 12px 28px; border-radius: 10px;
+    font-size: 15px; font-weight: 700; text-decoration: none; cursor: pointer;
+    border: none; transition: opacity .2s;
+  }
+  #btnDownload:hover { opacity: .85; }
+  #btnDownload .material-icons { font-size: 20px; }
+
+  /* Error */
+  #errorArea {
+    display: none; background: #2d0f0f; border: 1px solid #7f1d1d;
+    border-radius: 12px; padding: 16px; margin-bottom: 16px;
+    color: #fca5a5; font-size: 13px;
+  }
+
+  @media(max-width:520px){ .drop-row{grid-template-columns:1fr;} }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>🎬 Video Maker</h1>
+  <p class="subtitle">Upload MP3 + TXT → tự động tạo ảnh & ghép MP4 chuẩn YouTube</p>
+
+  <!-- Upload area -->
+  <div class="drop-row" id="uploadRow">
+    <div class="drop-zone" id="zoneMp3">
+      <input type="file" accept=".mp3,audio/*" id="inputMp3"/>
+      <div class="drop-icon">🎵</div>
+      <div class="drop-label">File MP3</div>
+      <div class="drop-sub">Kéo thả hoặc click chọn</div>
+      <div class="drop-filename" id="nameMp3"></div>
+    </div>
+    <div class="drop-zone" id="zoneTxt">
+      <input type="file" accept=".txt,text/plain" id="inputTxt"/>
+      <div class="drop-icon">📄</div>
+      <div class="drop-label">File TXT (script)</div>
+      <div class="drop-sub">Có chứa [IMAGE PROMPT: ...]</div>
+      <div class="drop-filename" id="nameTxt"></div>
+    </div>
+  </div>
+
+  <!-- Error -->
+  <div id="errorArea"></div>
+
+  <!-- Progress -->
+  <div id="progressArea">
+    <div class="prog-title" id="progTitle">🔄 Đang xử lý...</div>
+    <div class="prog-bar-wrap"><div class="prog-bar" id="progBar"></div></div>
+    <div class="prog-steps" id="progSteps"></div>
+  </div>
+
+  <!-- Image strip preview -->
+  <div id="imageStrip" style="display:none;"></div>
+
+  <!-- Download -->
+  <div id="downloadArea">
+    <div class="dl-title">✅ Hoàn thành! Video đã sẵn sàng</div>
+    <div class="dl-meta" id="dlMeta"></div>
+    <a id="btnDownload" href="#" download="video_youtube.mp4">
+      <span class="material-icons">download</span> Tải MP4
+    </a>
+  </div>
+</div>
+
+<script>
+// =============================================
+// STATE
+// =============================================
+var state = {
+  mp3File: null, mp3Blob: null,
+  txtFile: null, txtContent: '',
+  running: false
+};
+
+// =============================================
+// FILE INPUT HANDLERS
+// =============================================
+var inputMp3 = document.getElementById('inputMp3');
+var inputTxt  = document.getElementById('inputTxt');
+var zoneMp3   = document.getElementById('zoneMp3');
+var zoneTxt   = document.getElementById('zoneTxt');
+
+inputMp3.addEventListener('change', function() {
+  if (!this.files[0]) return;
+  state.mp3File = this.files[0];
+  state.mp3Blob = this.files[0];
+  document.getElementById('nameMp3').textContent = this.files[0].name;
+  zoneMp3.classList.add('file-ok');
+  tryStart();
+});
+
+inputTxt.addEventListener('change', function() {
+  if (!this.files[0]) return;
+  state.txtFile = this.files[0];
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    state.txtContent = e.target.result;
+    document.getElementById('nameTxt').textContent = state.txtFile.name;
+    zoneTxt.classList.add('file-ok');
+    tryStart();
+  };
+  reader.readAsText(this.files[0], 'UTF-8');
+});
+
+// Drag & drop
+[
+  {zone: zoneMp3, input: inputMp3},
+  {zone: zoneTxt, input: inputTxt}
+].forEach(function(obj) {
+  obj.zone.addEventListener('dragover', function(e) { e.preventDefault(); obj.zone.classList.add('drag-over'); });
+  obj.zone.addEventListener('dragleave', function()  { obj.zone.classList.remove('drag-over'); });
+  obj.zone.addEventListener('drop', function(e) {
+    e.preventDefault(); obj.zone.classList.remove('drag-over');
+    var files = e.dataTransfer.files;
+    if (files.length > 0) {
+      var dt = new DataTransfer();
+      dt.items.add(files[0]);
+      obj.input.files = dt.files;
+      obj.input.dispatchEvent(new Event('change'));
+    }
+  });
+});
+
+function tryStart() {
+  if (state.mp3Blob && state.txtContent && !state.running) {
+    startProcessing();
+  }
+}
+
+// =============================================
+// UI HELPERS
+// =============================================
+function showProgress() {
+  document.getElementById('progressArea').style.display = 'block';
+}
+function setProgBar(pct) {
+  document.getElementById('progBar').style.width = pct + '%';
+}
+function setProgTitle(txt) {
+  document.getElementById('progTitle').textContent = txt;
+}
+function addStep(id, text, type) {
+  // type: 'active' | 'done' | 'error'
+  var div = document.getElementById('step_' + id);
+  var icon = type === 'done' ? 'check_circle' : type === 'error' ? 'error' : 'radio_button_unchecked';
+  var html = '<span class="material-icons">' + icon + '</span>' + text;
+  if (!div) {
+    div = document.createElement('div');
+    div.id = 'step_' + id;
+    div.className = 'prog-step ' + type;
+    div.innerHTML = html;
+    document.getElementById('progSteps').appendChild(div);
+    div.scrollIntoView({behavior:'smooth', block:'nearest'});
+  } else {
+    div.className = 'prog-step ' + type;
+    div.innerHTML = html;
+  }
+}
+function showError(msg) {
+  var el = document.getElementById('errorArea');
+  el.textContent = '❌ ' + msg;
+  el.style.display = 'block';
+  setProgTitle('❌ Thất bại');
+}
+function showImageStrip(count) {
+  var strip = document.getElementById('imageStrip');
+  strip.innerHTML = '';
+  strip.style.display = 'flex';
+  for (var i = 0; i < count; i++) {
+    var img = document.createElement('img');
+    img.id = 'prev_' + i;
+    img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+    img.className = 'generating';
+    strip.appendChild(img);
+  }
+}
+function setPreviewImage(idx, src) {
+  var img = document.getElementById('prev_' + idx);
+  if (img) { img.src = src; img.className = 'done'; }
+}
+
+// =============================================
+// PARSE TXT
+// =============================================
+function parseTxtScenes(txt) {
+  var scenes = [];
+  var lines = txt.split('\n');
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i].trim();
+    if (!line) continue;
+    var imgMatch = line.match(/^\[IMAGE PROMPT:\s*([\s\S]*?)\]\s*$/);
+    if (!imgMatch) continue;
+    var full = imgMatch[1].trim();
+    var modelMatch = full.match(/^\[MODEL:([\w-]+)\]\s*/i);
+    var model  = modelMatch ? modelMatch[1].toLowerCase() : 'flux';
+    var prompt = modelMatch ? full.replace(/^\[MODEL:[\w-]+\]\s*/i,'').trim() : full;
+    var startTime = 0, duration = null;
+    for (var j = i - 1; j >= Math.max(0, i - 6); j--) {
+      var pl = lines[j].trim();
+      var stm = pl.match(/startTime:\s*([0-9.]+)s/i);
+      if (stm && !startTime) startTime = parseFloat(stm[1]);
+      var dm = pl.match(/→\s*([0-9.]+)s\s*→/);
+      if (dm && duration === null) duration = parseFloat(dm[1]);
+    }
+    if (prompt.length > 5) scenes.push({startTime:startTime, duration:duration, prompt:prompt, model:model});
+  }
+  console.log('[parseTxtScenes]', scenes.length, 'cảnh tìm thấy');
+  return scenes;
+}
+
+// =============================================
+// AUDIO DURATION
+// =============================================
+function getAudioDuration(blob) {
+  return new Promise(function(resolve) {
+    var audio = new Audio();
+    var url = URL.createObjectURL(blob);
+    audio.addEventListener('loadedmetadata', function() { URL.revokeObjectURL(url); resolve(audio.duration); });
+    audio.addEventListener('error', function() { URL.revokeObjectURL(url); resolve(0); });
+    audio.src = url;
+  });
+}
+
+// =============================================
+// FETCH IMAGE FROM POLLINATIONS
+// =============================================
+async function fetchImage(prompt, model, seed) {
+  var retries = 3;
+  var url = 'https://image.pollinations.ai/prompt/' + encodeURIComponent(prompt) +
+    '?width=1920&height=1080&model=' + model + '&nologo=true&enhance=true&seed=' + seed;
+  for (var a = 1; a <= retries; a++) {
+    try {
+      var resp = await fetch(url, {signal: AbortSignal.timeout(90000)});
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      var blob = await resp.blob();
+      if (blob.size < 5000) throw new Error('Image too small');
+      return blob;
+    } catch(e) {
+      console.warn('[Pollinations] attempt ' + a + ' failed:', e.message);
+      if (a < retries) await sleep(4000 * a);
+      else throw e;
+    }
+  }
+}
+
+function sleep(ms) { return new Promise(function(r){ setTimeout(r, ms); }); }
+
+function blobToUint8(blob) {
+  return blob.arrayBuffer().then(function(buf){ return new Uint8Array(buf); });
+}
+
+// =============================================
+// MAIN PROCESSING
+// =============================================
+async function startProcessing() {
+  state.running = true;
+  showProgress();
+  setProgBar(2);
+
+  try {
+    // STEP 1 — Parse TXT
+    addStep('parse','🔍 Phân tích file TXT...','active');
+    var scenes = parseTxtScenes(state.txtContent);
+    if (scenes.length === 0) throw new Error('Không tìm thấy [IMAGE PROMPT:] nào trong file TXT');
+    addStep('parse','✅ Tìm thấy ' + scenes.length + ' cảnh','done');
+    setProgBar(5);
+
+    // STEP 2 — Audio duration
+    addStep('audio','🎵 Đọc thời lượng audio...','active');
+    var audioDur = await getAudioDuration(state.mp3Blob);
+    if (!audioDur || audioDur < 1) throw new Error('Không đọc được thời lượng file MP3');
+    addStep('audio','✅ Thời lượng: ' + audioDur.toFixed(1) + 's (' + (audioDur/60).toFixed(1) + ' phút)','done');
+    setProgBar(8);
+
+    // Compute scene durations
+    var durs = [];
+    for (var i = 0; i < scenes.length; i++) {
+      var d;
+      if (scenes[i].duration && scenes[i].duration > 0) {
+        d = scenes[i].duration;
+      } else if (scenes[i].startTime !== null && scenes[i+1] && scenes[i+1].startTime !== null) {
+        d = scenes[i+1].startTime - scenes[i].startTime;
+      } else if (i === scenes.length - 1) {
+        d = audioDur - scenes[i].startTime;
+      } else {
+        d = audioDur / scenes.length;
+      }
+      durs.push(Math.max(d, 1));
+    }
+
+    // STEP 3 — Fetch images
+    addStep('imgs','🖼 Tải ảnh (0/' + scenes.length + ')...','active');
+    showImageStrip(scenes.length);
+    var imageBlobs = [];
+    for (var i = 0; i < scenes.length; i++) {
+      addStep('imgs','🖼 Tải ảnh (' + (i+1) + '/' + scenes.length + ')...','active');
+      var seed = 100 + i * 13;
+      var blob = await fetchImage(scenes[i].prompt, scenes[i].model, seed);
+      imageBlobs.push(blob);
+      var objUrl = URL.createObjectURL(blob);
+      setPreviewImage(i, objUrl);
+      var pct = 8 + Math.round((i + 1) / scenes.length * 52);
+      setProgBar(pct);
+      if (i < scenes.length - 1) await sleep(2500);
+    }
+    addStep('imgs','✅ Tải xong ' + scenes.length + ' ảnh','done');
+    setProgBar(62);
+
+    // STEP 4 — Load FFmpeg
+    addStep('ffmpeg','⚙️ Khởi động FFmpeg.wasm...','active');
+    var ffmpeg = FFmpeg.createFFmpeg({
+      corePath: 'https://cdnjs.cloudflare.com/ajax/libs/ffmpeg-core/0.11.0/ffmpeg-core.js',
+      log: false
+    });
+    await ffmpeg.load();
+    addStep('ffmpeg','✅ FFmpeg.wasm sẵn sàng','done');
+    setProgBar(66);
+
+    // STEP 5 — Write files to FS
+    addStep('write','📁 Ghi file vào bộ nhớ...','active');
+    // Write images
+    for (var i = 0; i < imageBlobs.length; i++) {
+      var fname = 'img' + String(i).padStart(3,'0') + '.jpg';
+      ffmpeg.FS('writeFile', fname, await blobToUint8(imageBlobs[i]));
+    }
+    // Write audio
+    ffmpeg.FS('writeFile', 'audio.mp3', await blobToUint8(state.mp3Blob));
+    // Write concat.txt
+    var concatTxt = '';
+    for (var i = 0; i < scenes.length; i++) {
+      var fn = 'img' + String(i).padStart(3,'0') + '.jpg';
+      concatTxt += "file '" + fn + "'\nduration " + durs[i].toFixed(3) + "\n";
+    }
+    // FFmpeg concat requires last image repeated
+    var lastFn = 'img' + String(scenes.length-1).padStart(3,'0') + '.jpg';
+    concatTxt += "file '" + lastFn + "'\n";
+    ffmpeg.FS('writeFile', 'concat.txt', new TextEncoder().encode(concatTxt));
+    addStep('write','✅ Ghi xong','done');
+    setProgBar(72);
+
+    // STEP 6 — Render MP4
+    addStep('render','🎬 Ghép video MP4 (YouTube)...','active');
+    setProgTitle('🎬 Đang ghép video...');
+    await ffmpeg.run(
+      '-f','concat','-safe','0','-i','concat.txt',
+      '-i','audio.mp3',
+      '-c:v','libx264',
+      '-tune','stillimage',
+      '-crf','23',
+      '-preset','ultrafast',
+      '-c:a','aac',
+      '-b:a','192k',
+      '-pix_fmt','yuv420p',
+      '-shortest',
+      '-movflags','+faststart',
+      'output.mp4'
+    );
+    setProgBar(94);
+
+    // STEP 7 — Read output
+    addStep('out','📦 Đóng gói file MP4...','active');
+    var outData = ffmpeg.FS('readFile','output.mp4');
+    var mp4Blob = new Blob([outData], {type:'video/mp4'});
+    var mp4Url  = URL.createObjectURL(mp4Blob);
+
+    // Cleanup FS
+    try {
+      for (var i = 0; i < scenes.length; i++) ffmpeg.FS('unlink','img'+String(i).padStart(3,'0')+'.jpg');
+      ffmpeg.FS('unlink','audio.mp3');
+      ffmpeg.FS('unlink','concat.txt');
+      ffmpeg.FS('unlink','output.mp4');
+    } catch(e) { /* ignore */ }
+
+    addStep('out','✅ Hoàn thành!','done');
+    setProgBar(100);
+    setProgTitle('✅ Video đã sẵn sàng!');
+
+    // STEP 8 — Show download
+    var mb = (mp4Blob.size / 1024 / 1024).toFixed(1);
+    var minStr = (audioDur / 60).toFixed(1);
+    document.getElementById('dlMeta').textContent =
+      scenes.length + ' cảnh • ' + minStr + ' phút • ' + mb + ' MB • H.264 1920×1080 AAC 192k';
+    var btnDl = document.getElementById('btnDownload');
+    var safeBase = (state.mp3File ? state.mp3File.name.replace(/\.[^.]+$/,'') : 'video');
+    btnDl.href = mp4Url;
+    btnDl.download = safeBase + '_youtube.mp4';
+    document.getElementById('downloadArea').style.display = 'block';
+
+  } catch(err) {
+    console.error('[VideoMaker] Error:', err);
+    showError(err.message || String(err));
+    addStep('err','❌ ' + (err.message || err), 'error');
+  }
+
+  state.running = false;
+}
+</script>
+</body>
+</html>
