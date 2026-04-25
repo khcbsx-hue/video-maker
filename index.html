@@ -316,7 +316,11 @@ function getAudioDuration(blob) {
 async function fetchImage(prompt, model, seed) {
   var retries = 3;
   var url = 'https://image.pollinations.ai/prompt/' + encodeURIComponent(prompt) +
-    '?width=1920&height=1080&model=' + model + '&nologo=true&enhance=true&seed=' + seed;
+          '?width=1920&height=1080' +
+          '&model=' + model + 
+          '&nologo=true' + 
+          '&enhance=true' + // enhance=true giúp tự động làm nét thêm 1 chút
+          '&seed=' + seed;
   for (var a = 1; a <= retries; a++) {
     try {
       var resp = await fetch(url, {signal: AbortSignal.timeout(90000)});
