@@ -462,7 +462,8 @@ function hideProgress() {
 async function renderSegMP4(ff, scenesInSeg, imgMap, audioFile, segStart, segEnd, segLabel) {
   var segId = 'seg_' + segLabel;
   var FPS = 24;
-  var TRANSITION_FRAMES = 12; // 0.5 giây fade transition @ 24fps
+  var TRANSITION_FRAMES = 6;
+  var KEYFRAME_INTERVAL = 2; // Chỉ tạo 1 keyframe mỗi 2 giây thay vì mỗi frame
 
   // ── Helper: tạo keyframes Ken Burns cho 1 ảnh ──────────────────────
   // Trả về mảng JPEG Uint8Array (mỗi phần tử = 1 frame)
@@ -472,7 +473,7 @@ async function renderSegMP4(ff, scenesInSeg, imgMap, audioFile, segStart, segEnd
       var img = new Image();
       img.onload = function() {
         URL.revokeObjectURL(url);
-        var totalFrames = Math.max(2, Math.round(durationSec * FPS));
+        var totalFrames = Math.max(2, Math.round(durationSec / KEYFRAME_INTERVAL));
         var canvas = document.createElement('canvas');
         canvas.width = 1920; canvas.height = 1080;
         var ctx = canvas.getContext('2d');
@@ -612,7 +613,7 @@ async function renderSegMP4(ff, scenesInSeg, imgMap, audioFile, segStart, segEnd
       var frameFname = 'f_' + segId + '_' + i + '_' + fi + '.jpg';
       allFrameFiles.push({ fname: frameFname, data: frames[fi] });
       concatLines.push("file '" + frameFname + "'");
-      concatLines.push("duration " + (1/FPS).toFixed(6));
+      concatLines.push("duration " + KEYFRAME_INTERVAL.toFixed(6));
     }
   }
 
