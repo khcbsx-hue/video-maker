@@ -152,7 +152,12 @@ function checkAutoReady() {
 
 /* ============ RESET ============ */
 function resetManual() {
-  APP.manualMp3 = null; APP.manualTxt = null; APP.manualImgs = {};
+  // Reset files
+  APP.manualMp3 = null;
+  APP.manualTxt = null;
+  APP.manualImgs = {};
+
+  // Reset drop zones
   ['dz-manual-mp3','dz-manual-txt','dz-manual-imgs'].forEach(function(id){
     var dz = document.getElementById(id);
     dz.classList.remove('has-file','dragover');
@@ -160,33 +165,100 @@ function resetManual() {
   document.getElementById('dz-manual-mp3').querySelector('.drop-title').textContent = 'Kéo thả hoặc click';
   document.getElementById('dz-manual-txt').querySelector('.drop-title').textContent = 'Kéo thả hoặc click';
   document.getElementById('dz-manual-imgs').querySelector('.drop-title').textContent = 'Kéo thả nhiều ảnh';
+
+  // Reset file inputs để có thể chọn lại cùng file
+  document.getElementById('inp-manual-mp3').value = '';
+  document.getElementById('inp-manual-txt').value = '';
+  document.getElementById('inp-manual-imgs').value = '';
+
+  // Reset info text
   ['info-manual-mp3','info-manual-txt','info-manual-imgs'].forEach(function(id){
     document.getElementById(id).textContent = '';
   });
+
+  // Disable nút ghép
   document.getElementById('btn-manual').disabled = true;
-  resetResults();
-}
-function resetAuto() {
-  APP.autoMp3 = null; APP.autoTxt = null;
-  ['dz-auto-mp3','dz-auto-txt'].forEach(function(id){
-    var dz = document.getElementById(id);
-    dz.classList.remove('has-file','dragover');
-    dz.querySelector('.drop-title').textContent = 'Kéo thả hoặc click';
+
+  // Reset video player
+  var video = document.getElementById('main-video');
+  video.pause();
+  video.src = '';
+
+  // Revoke blob URLs cũ để giải phóng RAM
+  APP.segments.forEach(function(seg){
+    if (seg.blobUrl) URL.revokeObjectURL(seg.blobUrl);
   });
-  ['info-auto-mp3','info-auto-txt'].forEach(function(id){
-    document.getElementById(id).textContent = '';
-  });
-  document.getElementById('btn-auto').disabled = true;
-  resetResults();
-}
-function resetResults() {
-  APP.scenes = []; APP.segments = []; APP.activeSegIdx = -1;
+
+  // Reset APP state
+  APP.scenes = [];
+  APP.segments = [];
+  APP.activeSegIdx = -1;
+  APP.audioDuration = 0;
   APP.reRenderOverrides = {};
+
+  // Reset UI panels
   document.getElementById('progress-card').style.display = 'none';
   document.getElementById('segments-area').style.display = 'none';
   document.getElementById('player-card').style.display = 'none';
   document.getElementById('empty-state').style.display = 'flex';
   document.getElementById('segments-grid').innerHTML = '';
+  document.getElementById('rerender-panel').style.display = 'none';
+  document.getElementById('progress-log').innerHTML = '';
+
+  console.log('✅ Reset hoàn tất — sẵn sàng tạo video mới');
+}
+
+function resetAuto() {
+  // Reset files
+  APP.autoMp3 = null;
+  APP.autoTxt = null;
+
+  // Reset drop zones
+  ['dz-auto-mp3','dz-auto-txt'].forEach(function(id){
+    var dz = document.getElementById(id);
+    dz.classList.remove('has-file','dragover');
+    dz.querySelector('.drop-title').textContent = 'Kéo thả hoặc click';
+  });
+
+  // Reset file inputs
+  document.getElementById('inp-auto-mp3').value = '';
+  document.getElementById('inp-auto-txt').value = '';
+
+  // Reset info
+  ['info-auto-mp3','info-auto-txt'].forEach(function(id){
+    document.getElementById(id).textContent = '';
+  });
+
+  // Disable nút
+  document.getElementById('btn-auto').disabled = true;
+
+  // Reset video
+  var video = document.getElementById('main-video');
+  video.pause();
+  video.src = '';
+
+  // Revoke blobs
+  APP.segments.forEach(function(seg){
+    if (seg.blobUrl) URL.revokeObjectURL(seg.blobUrl);
+  });
+
+  // Reset state
+  APP.scenes = [];
+  APP.segments = [];
+  APP.activeSegIdx = -1;
+  APP.audioDuration = 0;
+  APP.reRenderOverrides = {};
+
+  // Reset UI
+  document.getElementById('progress-card').style.display = 'none';
+  document.getElementById('segments-area').style.display = 'none';
+  document.getElementById('player-card').style.display = 'none';
+  document.getElementById('empty-state').style.display = 'flex';
+  document.getElementById('segments-grid').innerHTML = '';
+  document.getElementById('rerender-panel').style.display = 'none';
+  document.getElementById('progress-log').innerHTML = '';
+
+  console.log('✅ Reset hoàn tất — sẵn sàng tạo video mới');
 }
 
 /* ============ FFMPEG INIT ============ */
@@ -577,8 +649,16 @@ async function startManual() {
       }
     }
 
-    setProgressPct(100);
+     setProgressPct(100);
     addLog('🎉 Hoàn tất! ' + APP.segments.filter(function(s){return s.status==='ok';}).length + '/' + APP.segments.length + ' đoạn thành công.', 'log-ok');
+    document.getElementById('progress-title').textContent = '✅ Hoàn tất!';
+    var progIcon = document.querySelector('#progress-card .progress-header .material-icons');
+    if (progIcon) {
+      progIcon.style.animation = 'none';
+      progIcon.textContent = 'check_circle';
+      progIcon.style.color = '#10b981';
+    }
+    setTimeout(function(){ hideProgress(); }, 3000);
     
   } catch (err) {
     addLog('❌ Lỗi: ' + err.message, 'log-err');
