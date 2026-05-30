@@ -461,79 +461,216 @@ function hideProgress() {
 // segStart, segEnd: giây
 async function renderSegMP4(ff, scenesInSeg, imgMap, audioFile, segStart, segEnd, segLabel) {
   var segId = 'seg_' + segLabel;
+  var FPS = 24;
+  var TRANSITION_FRAMES = 12; // 0.5 giây fade transition @ 24fps
 
-  // 1. Ghi ảnh vào FS
-  var writtenImgs = {};
+  // ── Helper: tạo keyframes Ken Burns cho 1 ảnh ──────────────────────
+  // Trả về mảng JPEG Uint8Array (mỗi phần tử = 1 frame)
+  function buildKenBurnsFrames(jpegData, durationSec, sceneIndex) {
+    return new Promise(function(resolve, reject) {
+      var url = URL.createObjectURL(new Blob([jpegData], {type:'image/jpeg'}));
+      var img = new Image();
+      img.onload = function() {
+        URL.revokeObjectURL(url);
+        var totalFrames = Math.max(2, Math.round(durationSec * FPS));
+        var canvas = document.createElement('canvas');
+        canvas.width = 1920; canvas.height = 1080;
+        var ctx = canvas.getContext('2d');
+
+        // Chọn hiệu ứng xen kẽ theo index cảnh
+        var effect = sceneIndex % 4;
+        // 0: zoom in center, 1: zoom out center, 2: pan left→right, 3: pan right→left
+
+        var frames = [];
+        var pending = totalFrames;
+        var results = new Array(totalFrames);
+
+        function renderFrame(fi) {
+          var t = totalFrames <= 1 ? 0 : fi / (totalFrames - 1); // 0.0 → 1.0
+
+          ctx.fillStyle = '#000';
+          ctx.fillRect(0, 0, 1920, 1080);
+
+          var scale, ox, oy;
+          var iw = img.naturalWidth, ih = img.naturalHeight;
+          var baseScale = Math.max(1920/iw, 1080/ih);
+
+          if (effect === 0) {
+            // Zoom in: 100% → 112%
+            scale = baseScale * (1.00 + 0.12 * t);
+            ox = (1920 - iw * scale) / 2;
+            oy = (1080 - ih * scale) / 2;
+          } else if (effect === 1) {
+            // Zoom out: 112% → 100%
+            scale = baseScale * (1.12 - 0.12 * t);
+            ox = (1920 - iw * scale) / 2;
+            oy = (1080 - ih * scale) / 2;
+          } else if (effect === 2) {
+            // Pan left → right: zoom 108%, dịch ngang
+            scale = baseScale * 1.08;
+            var maxPan = (iw * scale - 1920) / 2;
+            ox = (1920 - iw * scale) / 2 + maxPan * (t * 2 - 1) * (-1);
+            oy = (1080 - ih * scale) / 2;
+          } else {
+            // Pan right → left
+            scale = baseScale * 1.08;
+            var maxPan2 = (iw * scale - 1920) / 2;
+            ox = (1920 - iw * scale) / 2 + maxPan2 * (t * 2 - 1);
+            oy = (1080 - ih * scale) / 2;
+          }
+
+          ctx.drawImage(img, ox, oy, iw * scale, ih * scale);
+
+          canvas.toBlob(function(blob) {
+            blob.arrayBuffer().then(function(buf) {
+              results[fi] = new Uint8Array(buf);
+              pending--;
+              if (pending === 0) resolve(results);
+            });
+          }, 'image/jpeg', 0.85);
+        }
+
+        // Render từng frame tuần tự để tránh quá tải RAM
+        (async function renderAllFrames() {
+          for (var fi = 0; fi < totalFrames; fi++) {
+            await new Promise(function(res) {
+              var idx = fi;
+              ctx.fillStyle = '#000';
+              ctx.fillRect(0, 0, 1920, 1080);
+              var t = totalFrames <= 1 ? 0 : idx / (totalFrames - 1);
+              var scale, ox, oy;
+              var iw2 = img.naturalWidth, ih2 = img.naturalHeight;
+              var baseScale2 = Math.max(1920/iw2, 1080/ih2);
+
+              if (effect === 0) {
+                scale = baseScale2 * (1.00 + 0.12 * t);
+                ox = (1920 - iw2 * scale) / 2;
+                oy = (1080 - ih2 * scale) / 2;
+              } else if (effect === 1) {
+                scale = baseScale2 * (1.12 - 0.12 * t);
+                ox = (1920 - iw2 * scale) / 2;
+                oy = (1080 - ih2 * scale) / 2;
+              } else if (effect === 2) {
+                scale = baseScale2 * 1.08;
+                var mp = Math.max(0, (iw2 * scale - 1920) / 2);
+                ox = (1920 - iw2 * scale) / 2 - mp * (t * 2 - 1);
+                oy = (1080 - ih2 * scale) / 2;
+              } else {
+                scale = baseScale2 * 1.08;
+                var mp2 = Math.max(0, (iw2 * scale - 1920) / 2);
+                ox = (1920 - iw2 * scale) / 2 + mp2 * (t * 2 - 1);
+                oy = (1080 - ih2 * scale) / 2;
+              }
+
+              ctx.drawImage(img, ox, oy, iw2 * scale, ih2 * scale);
+
+              // Fade in đầu cảnh (TRANSITION_FRAMES frames)
+              if (idx < TRANSITION_FRAMES) {
+                var alpha = idx / TRANSITION_FRAMES;
+                ctx.fillStyle = 'rgba(0,0,0,' + (1 - alpha) + ')';
+                ctx.fillRect(0, 0, 1920, 1080);
+              }
+              // Fade out cuối cảnh
+              if (idx >= totalFrames - TRANSITION_FRAMES) {
+                var alpha2 = (totalFrames - 1 - idx) / TRANSITION_FRAMES;
+                ctx.fillStyle = 'rgba(0,0,0,' + (1 - alpha2) + ')';
+                ctx.fillRect(0, 0, 1920, 1080);
+              }
+
+              canvas.toBlob(function(blob) {
+                blob.arrayBuffer().then(function(buf) {
+                  results[idx] = new Uint8Array(buf);
+                  res();
+                });
+              }, 'image/jpeg', 0.85);
+            });
+          }
+          resolve(results);
+        })();
+      };
+      img.onerror = function() { reject(new Error('Load ảnh thất bại')); };
+      img.src = url;
+    });
+  }
+
+  // ── Bắt đầu render segment ──────────────────────────────────────────
+
+  // 1. Tạo keyframes cho tất cả cảnh trong segment
+  var allFrameFiles = []; // [{fname, data}]
+  var concatLines = [];
+
   for (var i = 0; i < scenesInSeg.length; i++) {
     var sc = scenesInSeg[i];
-    if (!writtenImgs[sc.fileName]) {
-      var fname = 'img_' + Object.keys(writtenImgs).length + '_' + segId + '.jpg';
-      var data = imgMap[sc.fileName];
-      if (!data) throw new Error('Thiếu ảnh: ' + sc.fileName);
-      ff.FS('writeFile', fname, data);
-      writtenImgs[sc.fileName] = fname;
+    var jpegData = imgMap[sc.fileName];
+    if (!jpegData) throw new Error('Thiếu ảnh: ' + sc.fileName);
+
+    addLog('  🎨 Ken Burns cảnh ' + (i+1) + '/' + scenesInSeg.length + ' (' + sc.duration.toFixed(1) + 's)...', '');
+
+    var frames = await buildKenBurnsFrames(jpegData, sc.duration, i);
+
+    for (var fi = 0; fi < frames.length; fi++) {
+      var frameFname = 'f_' + segId + '_' + i + '_' + fi + '.jpg';
+      allFrameFiles.push({ fname: frameFname, data: frames[fi] });
+      concatLines.push("file '" + frameFname + "'");
+      concatLines.push("duration " + (1/FPS).toFixed(6));
     }
   }
 
-  // 2. Build concat.txt
-  var concatLines = [];
-  for (var j = 0; j < scenesInSeg.length; j++) {
-    var sc2 = scenesInSeg[j];
-    var imgFname = writtenImgs[sc2.fileName];
-    var dur = sc2.duration;
-    if (dur <= 0) dur = 0.04;
-    concatLines.push("file '" + imgFname + "'");
-    concatLines.push("duration " + dur.toFixed(6));
+  // Dòng cuối bắt buộc của concat demuxer
+  concatLines.push("file '" + allFrameFiles[allFrameFiles.length - 1].fname + "'");
+
+  addLog('  📝 Tổng ' + allFrameFiles.length + ' frames, ghi vào FS...', '');
+
+  // 2. Ghi tất cả frames vào FS
+  for (var k = 0; k < allFrameFiles.length; k++) {
+    ff.FS('writeFile', allFrameFiles[k].fname, allFrameFiles[k].data);
   }
-  // Dòng cuối bắt buộc
-  concatLines.push("file '" + writtenImgs[scenesInSeg[scenesInSeg.length - 1].fileName] + "'");
+
+  // 3. Ghi concat.txt
   var concatFname = 'concat_' + segId + '.txt';
   ff.FS('writeFile', concatFname, new TextEncoder().encode(concatLines.join('\n') + '\n'));
 
-  // 3. Ghi TOÀN BỘ audio vào FS (không cắt riêng — dùng -ss -t trong render)
+  // 4. Ghi audio
   var mp3Data = new Uint8Array(await audioFile.arrayBuffer());
   var mp3Fname = 'audio_' + segId + '.mp3';
   ff.FS('writeFile', mp3Fname, mp3Data);
 
-  // 4. Render MP4 — dùng -ss -t trực tiếp trên audio input (1 lệnh duy nhất)
+  // 5. Render MP4
   var segDur = segEnd - segStart;
   var outFname = 'out_' + segId + '.mp4';
 
+  addLog('  🎬 FFmpeg encoding...', '');
+
   await ff.run(
-    // Video từ concat images
     '-f', 'concat', '-safe', '0', '-i', concatFname,
-    // Audio với trim trực tiếp
     '-ss', segStart.toFixed(3),
     '-t',  segDur.toFixed(3),
     '-i',  mp3Fname,
-    // Video codec
     '-c:v', 'libx264',
-    '-tune', 'stillimage',
     '-crf', '23',
     '-preset', 'ultrafast',
     '-pix_fmt', 'yuv420p',
-    '-r', '24',
-    // Audio codec
+    '-r', String(FPS),
     '-c:a', 'aac',
     '-b:a', '192k',
     '-ar', '44100',
-    // Output
     '-shortest',
     '-movflags', '+faststart',
     '-y', outFname
   );
 
-  // 5. Đọc output
+  // 6. Đọc output
   var outData;
   try { outData = ff.FS('readFile', outFname); } catch(e) { outData = null; }
   if (!outData || outData.length < 1000) {
     throw new Error('FFmpeg render ra file rỗng tại segment ' + segLabel);
   }
 
-  // 6. Dọn dẹp FS
-  var toDelete = [concatFname, mp3Fname, outFname];
-  Object.values(writtenImgs).forEach(function(fn) { toDelete.push(fn); });
-  toDelete.forEach(function(fn) { try { ff.FS('unlink', fn); } catch(e) {} });
+  // 7. Dọn dẹp FS
+  allFrameFiles.forEach(function(f) { try { ff.FS('unlink', f.fname); } catch(e) {} });
+  try { ff.FS('unlink', concatFname); } catch(e) {}
+  try { ff.FS('unlink', mp3Fname); } catch(e) {}
+  try { ff.FS('unlink', outFname); } catch(e) {}
 
   return outData;
 }
