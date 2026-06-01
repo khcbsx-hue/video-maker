@@ -21,7 +21,7 @@ var APP = {
   // Render state
   scenes: [],             // parsed scenes
   audioDuration: 0,       // giây
-  segmentDuration: 60,   // 2 phút mỗi đoạn
+  segmentDuration: 120,   // 2 phút mỗi đoạn
   segments: [],           // [{idx, start, end, scenes, blobUrl, size}]
   activeSegIdx: -1,       // đoạn đang mở trong player
 
@@ -629,12 +629,17 @@ async function startManual() {
   try {
     // 1. KHÓA NÚT NGAY LẬP TỨC ĐỂ CHỐNG DOUBLE-CLICK
     document.getElementById('btn-manual').disabled = true;
+    
+    // 2. GỌI POPUP CHỌN CHẾ ĐỘ RENDER
     APP.useKenBurns = await askRenderMode();
     
     showProgress('Đang khởi tạo...');
+    
+    // 3. KHỞI TẠO NÚT TẠM DỪNG / HỦY
     APP.isPaused = false;
     APP.isCancelled = false;
     document.querySelectorAll('.btn-pause-render, .btn-cancel-render').forEach(function(b){ b.disabled = false; }); 
+    
     APP.segments = [];
     APP.activeSegIdx = -1;
     document.getElementById('segments-area').style.display = 'none';
@@ -695,7 +700,7 @@ async function startManual() {
     addLog('✅ FFmpeg sẵn sàng', 'log-ok');
     setProgressPct(40);
 
-    // 7. Chia segments (mỗi 10 phút)
+    // 7. Chia segments (theo cấu hình APP.segmentDuration)
     var segs = buildSegments(timeline, audioDuration, APP.segmentDuration);
     addLog('📦 Chia thành ' + segs.length + ' đoạn', 'log-ok');
     APP.segments = segs.map(function(s, idx){ return Object.assign({}, s, {idx: idx, blobUrl: null, size: 0, status: 'pending'}); });
@@ -730,7 +735,7 @@ async function startManual() {
         var outData = await renderSegMP4(ff, segTimeline, imgMap, APP.manualMp3, seg.start, seg.end, 'm_' + si);
         var blob = new Blob([outData], { type: 'video/mp4' });
         
-        // 2. THÊM ÁO GIÁP BẢO VỆ MẢNG KHI BỊ RESET
+        // 4. ÁO GIÁP BẢO VỆ MẢNG DỮ LIỆU KHI RESET
         if (APP.segments[si]) {
           APP.segments[si].blobUrl = URL.createObjectURL(blob);
           APP.segments[si].size = outData.length;
@@ -745,7 +750,14 @@ async function startManual() {
           renderSegmentCards();
         }
       }
-    }
+
+      // 💥 5. KHỞI ĐỘNG LẠI FFMPEG ĐỂ XÓA KẸT LỆNH VÀ DỌN SẠCH RAM 💥
+      try { ff.exit(); } catch(ex) {}
+      APP.ff = null;
+      APP.ffLoaded = false;
+      ff = await getFF(); 
+
+    } // KẾT THÚC VÒNG LẶP RENDER CÁC ĐOẠN
 
     setProgressPct(100);
     addLog('🎉 Hoàn tất! ' + APP.segments.filter(function(s){return s.status==='ok';}).length + '/' + APP.segments.length + ' đoạn thành công.', 'log-ok');
@@ -759,6 +771,7 @@ async function startManual() {
     setTimeout(function(){ hideProgress(); }, 3000);
     
   } catch (err) {
+    // 6. XỬ LÝ THÔNG BÁO KHI NGƯỜI DÙNG BẤM HỦY
     if (err.message === "USER_CANCELLED") {
       addLog('🛑 Đã Hủy quá trình ghép video thành công!', 'log-err');
       document.getElementById('progress-title').textContent = 'Đã hủy!';
