@@ -624,7 +624,7 @@ async function renderSegMP4(ff, scenesInSeg, imgMap, audioFile, segStart, segEnd
 /* ============ START MANUAL ============ */
 async function startManual() {
   try {
-    APP.useKenBurns = confirm("Tùy chọn Render:\n\n• Bấm OK: Bật hiệu ứng Ken Burns (Ảnh lướt/mờ dần - Chờ khá lâu).\n• Bấm Hủy (Cancel): Ghép ảnh tĩnh cơ bản (Siêu tốc).");
+    APP.useKenBurns = await askRenderMode();
 document.getElementById('btn-manual').disabled = true;
     showProgress('Đang khởi tạo...');
     APP.segments = [];
@@ -1027,7 +1027,7 @@ function cancelReRender() {
 /* ============ START AUTO (giữ nguyên logic cũ) ============ */
 async function startAuto() {
   try {
-    APP.useKenBurns = confirm("Tùy chọn Render:\n\n• Bấm OK: Bật hiệu ứng Ken Burns (Ảnh lướt/mờ dần - Chờ khá lâu).\n• Bấm Hủy (Cancel): Ghép ảnh tĩnh cơ bản (Siêu tốc).");
+    APP.useKenBurns = await askRenderMode();
 document.getElementById('btn-auto').disabled = true;
     showProgress('Đọc file...');
     APP.segments = [];
@@ -1170,5 +1170,28 @@ function fmtSize(bytes) {
   if (bytes < 1024) return bytes + ' B';
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
   return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+}
+
+/* ============ CUSTOM CONFIRM MODAL ============ */
+function askRenderMode() {
+  return new Promise(function(resolve) {
+    var modal = document.getElementById('custom-confirm-modal');
+    var btnOk = document.getElementById('btn-modal-ok');
+    var btnCancel = document.getElementById('btn-modal-cancel');
+
+    modal.style.display = 'flex'; // Hiện Popup
+
+    var cleanup = function() {
+      modal.style.display = 'none'; // Ẩn Popup
+      btnOk.removeEventListener('click', onOk);
+      btnCancel.removeEventListener('click', onCancel);
+    };
+
+    var onOk = function() { cleanup(); resolve(true); };
+    var onCancel = function() { cleanup(); resolve(false); };
+
+    btnOk.addEventListener('click', onOk);
+    btnCancel.addEventListener('click', onCancel);
+  });
 }
 function sleep(ms) { return new Promise(function(r){ setTimeout(r, ms); }); }
