@@ -207,6 +207,44 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="custom-confirm-modal" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <span class="material-icons" style="color: var(--warning);">tune</span>
+        <h3>Tùy chọn Render Video</h3>
+      </div>
+      <div class="modal-body">
+        <p>Bạn muốn áp dụng hiệu ứng chuyển động cho hình ảnh không?</p>
+        
+        <div class="render-option">
+          <span class="material-icons" style="color: var(--accent2);">movie_filter</span>
+          <div>
+            <strong>Bật hiệu ứng Ken Burns</strong>
+            <p>Ảnh lướt, phóng to/thu nhỏ và mờ dần (Chờ khá lâu, máy phải render từng khung hình).</p>
+          </div>
+        </div>
+        
+        <div class="render-option">
+          <span class="material-icons" style="color: var(--success);">bolt</span>
+          <div>
+            <strong>Ảnh tĩnh cơ bản</strong>
+            <p>Ghép thẳng ảnh gốc và Audio (Render siêu tốc, tối ưu tuyệt đối cho máy yếu).</p>
+          </div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" id="btn-modal-cancel">
+          <span class="material-icons">flash_on</span>
+          Ảnh tĩnh (Nhanh)
+        </button>
+        <button class="btn-primary" id="btn-modal-ok">
+          <span class="material-icons">movie</span>
+          Ken Burns (Đẹp)
+        </button>
+      </div>
+    </div>
+  </div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ffmpeg/0.11.0/ffmpeg.min.js"></script>
 <script src="app.js"></script>
 </body>
