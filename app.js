@@ -553,6 +553,8 @@ async function renderSegMP4(ff, scenesInSeg, imgMap, audioFile, segStart, segEnd
 
     for (var fi = 0; fi < totalFrames; fi++) {
       var t = totalFrames <= 1 ? 0 : fi / (totalFrames - 1);
+     // 🌟 THÊM CÔNG THỨC LƯỢNG GIÁC LÀM MƯỢT (EASE-IN-OUT)
+      var easeT = -(Math.cos(Math.PI * t) - 1) / 2;
       var iw = img.naturalWidth, ih = img.naturalHeight;
       var baseScale = Math.max(1920/iw, 1080/ih);
       var scale, ox, oy;
@@ -560,10 +562,10 @@ async function renderSegMP4(ff, scenesInSeg, imgMap, audioFile, segStart, segEnd
       ctx.fillStyle = '#000';
       ctx.fillRect(0, 0, 1920, 1080);
 
-      if (effect === 0) { scale = baseScale * (1.00 + 0.12 * t); ox = (1920 - iw * scale) / 2; oy = (1080 - ih * scale) / 2; } 
-      else if (effect === 1) { scale = baseScale * (1.12 - 0.12 * t); ox = (1920 - iw * scale) / 2; oy = (1080 - ih * scale) / 2; } 
-      else if (effect === 2) { scale = baseScale * 1.08; var mp = Math.max(0, (iw * scale - 1920) / 2); ox = (1920 - iw * scale) / 2 - mp * (t * 2 - 1); oy = (1080 - ih * scale) / 2; } 
-      else { scale = baseScale * 1.08; var mp2 = Math.max(0, (iw * scale - 1920) / 2); ox = (1920 - iw * scale) / 2 + mp2 * (t * 2 - 1); oy = (1080 - ih * scale) / 2; }
+      if (effect === 0) { scale = baseScale * (1.00 + 0.12 * easeT); ox = (1920 - iw * scale) / 2; oy = (1080 - ih * scale) / 2; } 
+      else if (effect === 1) { scale = baseScale * (1.12 - 0.12 * easeT); ox = (1920 - iw * scale) / 2; oy = (1080 - ih * scale) / 2; } 
+      else if (effect === 2) { scale = baseScale * 1.08; var mp = Math.max(0, (iw * scale - 1920) / 2); ox = (1920 - iw * scale) / 2 - mp * (easeT * 2 - 1); oy = (1080 - ih * scale) / 2; } 
+      else { scale = baseScale * 1.08; var mp2 = Math.max(0, (iw * scale - 1920) / 2); ox = (1920 - iw * scale) / 2 + mp2 * (easeT * 2 - 1); oy = (1080 - ih * scale) / 2; }
 
       ctx.drawImage(img, ox, oy, iw * scale, ih * scale);
 
