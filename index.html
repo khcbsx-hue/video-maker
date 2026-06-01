@@ -88,10 +88,17 @@
           <span class="material-icons">movie</span>
           Ghép Video
         </button>
-        <button class="btn-secondary" id="btn-manual-reset" onclick="resetManual()">
-          <span class="material-icons">restart_alt</span>
-          Làm mới toàn bộ
-        </button>
+        <div style="display: flex; gap: 6px;">
+  <button class="btn-secondary btn-pause-render" onclick="togglePause()" disabled style="flex: 1; padding: 10px 4px; font-size: 11px;">
+    <span class="material-icons btn-pause-icon" style="font-size: 16px;">pause</span> <span class="btn-pause-text">Tạm dừng</span>
+  </button>
+  <button class="btn-secondary btn-cancel-render" onclick="cancelRender()" disabled style="flex: 1; padding: 10px 4px; font-size: 11px; color: var(--error);">
+    <span class="material-icons" style="font-size: 16px;">stop</span> Dừng hẳn
+  </button>
+  <button class="btn-secondary" id="btn-manual-reset" onclick="resetManual()" style="flex: 1; padding: 10px 4px; font-size: 11px;">
+    <span class="material-icons" style="font-size: 16px;">restart_alt</span> Làm mới
+  </button>
+</div>
       </div>
 
       <!-- TAB AUTO -->
@@ -126,10 +133,17 @@
           <span class="material-icons">auto_awesome</span>
           Tạo Ảnh AI + Ghép
         </button>
-        <button class="btn-secondary" id="btn-auto-reset" onclick="resetAuto()">
-          <span class="material-icons">restart_alt</span>
-          Làm mới toàn bộ
-        </button>
+        <div style="display: flex; gap: 6px;">
+  <button class="btn-secondary btn-pause-render" onclick="togglePause()" disabled style="flex: 1; padding: 10px 4px; font-size: 11px;">
+    <span class="material-icons btn-pause-icon" style="font-size: 16px;">pause</span> <span class="btn-pause-text">Tạm dừng</span>
+  </button>
+  <button class="btn-secondary btn-cancel-render" onclick="cancelRender()" disabled style="flex: 1; padding: 10px 4px; font-size: 11px; color: var(--error);">
+    <span class="material-icons" style="font-size: 16px;">stop</span> Dừng hẳn
+  </button>
+  <button class="btn-secondary" id="btn-auto-reset" onclick="resetAuto()" style="flex: 1; padding: 10px 4px; font-size: 11px;">
+    <span class="material-icons" style="font-size: 16px;">restart_alt</span> Làm mới
+  </button>
+</div>
       </div>
 
     </aside>
